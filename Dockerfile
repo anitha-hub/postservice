@@ -1,20 +1,15 @@
 FROM python:3.8-alpine
+RUN apk add --no-cache python3-dev \
+    && pip3 install --upgrade pip
 
-MAINTAINER Danfishel Private Ltd
+WORKDIR /app
 
-ENV PYTHONUNBUFFERED 1
+COPY . /app
 
-COPY ./requirements.txt /requirements.txt
-RUN pip install -r /requirements.txt
+RUN pip3 --no-cache-dir install -r requirements.txt                                                                            
 
-RUN mkdir /postervice
-WORKDIR /postervice
-COPY . /postervice
+EXPOSE 5000
 
-ENTRYPOINT [ "python" ]
+ENTRYPOINT  ["python3"]
 
-CMD [ "app.py" ]
-
-RUN adduser -D user
-USER user
-
+CMD ["app.py"]

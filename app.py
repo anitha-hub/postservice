@@ -3,6 +3,8 @@ from flask import jsonify
 from flask import request
 from flask_pymongo import PyMongo
 from bson.objectid import ObjectId
+from bson.json_util import dumps
+
 
 app = Flask(__name__)
 app.config['MONGO_DBNAME'] = 'user_service'
@@ -44,6 +46,18 @@ def delete_post(id):
     resp.status_code = 200
     return resp
 
+@app.route('/posts', methods=['GET'])
+def post_list():
+    postlist = mongo.db.post
+    resp=postlist.find()
+    resp=dumps(resp)
+    return resp
+@app.route('/posts/<name>', methods=['GET'])
+def postlist(name):
+    postlist = mongo.db.post
+    resp=postlist.find_one({'name':name})
+    resp=dumps(resp)
+    return resp
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host="127.0.0.1", port=5002,debug=True)
