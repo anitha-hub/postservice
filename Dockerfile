@@ -1,15 +1,17 @@
 FROM python:3.8-alpine
-RUN apk add --no-cache python3-dev \
-    && pip3 install --upgrade pip
 
+MAINTAINER Danfishel Private Ltd
+
+ENV PYTHONUNBUFFERED 1
+
+COPY ./requirements.txt /requirements.txt
+RUN pip install -r /requirements.txt
+
+RUN mkdir /app
 WORKDIR /app
-
 COPY . /app
 
-RUN pip3 --no-cache-dir install -r requirements.txt                                                                            
+EXPOSE 5002
 
-EXPOSE 5000
-
-ENTRYPOINT  ["python3"]
-
-CMD ["app.py"]
+ENTRYPOINT [ "python" ]
+CMD [ "app.py" ]

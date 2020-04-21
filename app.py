@@ -7,8 +7,8 @@ from bson.json_util import dumps
 
 
 app = Flask(__name__)
-app.config['MONGO_DBNAME'] = 'user_service'
-app.config['MONGO_URI'] = 'mongodb://localhost:27017/user_service'
+app.config['MONGO_DBNAME'] = 'postservice'
+app.config['MONGO_URI'] = 'mongodb://localhost:27017/postservice'
 mongo = PyMongo(app)
 
 @app.route('/addpost',methods=['POST'])
@@ -56,6 +56,13 @@ def post_list():
 def postlist(name):
     postlist = mongo.db.post
     resp=postlist.find_one({'name':name})
+    resp=dumps(resp)
+    return resp
+
+@app.route('/onepost/<id>', methods=['GET'])
+def post_based_id(id):
+    postlist = mongo.db.post
+    resp=postlist.find_one({'_id': ObjectId(id)})
     resp=dumps(resp)
     return resp
 
