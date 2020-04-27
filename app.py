@@ -1,70 +1,94 @@
 from flask import Flask
 from flask import jsonify
 from flask import request
-from flask_pymongo import PyMongo
-from bson.objectid import ObjectId
-from bson.json_util import dumps
+from flask_mongoengine import MongoEngine
+from mongoengine import *
+from mongoengine import connect
+from mongoengine.connection import disconnect
+import jwt
+import json
+import requests
+from functools import wraps
 
 
 app = Flask(__name__)
-app.config['MONGO_DBNAME'] = 'postservice'
-app.config['MONGO_URI'] = 'mongodb://localhost:27017/postservice'
-mongo = PyMongo(app)
+app.config['SECRET_KEY'] = 'Th1s1ss3cr3t'
+app.config['MONGODB_DB'] = 'post_service'
+db = MongoEngine(app)
+connect('db',host='localhost', port=27017,alias='postdb')
+
+class PostDetails(Document):
+    name = StringField(index=True)
+    post = StringField()
+    user_id=StringField()
+
+disconnect(alias='postdb')
+
+def token_required(f):
+    @wraps(f)
+    def decorator(*args, **kwargs):
+        token = None
+        if 'X-Access-Token' in request.headers:
+            token = request.headers['X-Access-Token']
+        if not token:
+            return jsonify({'message': 'a valid token is missing'})
+
+        data=jwt.decode(token, app.config['SECRET_KEY'])
+        public_id=data['public_id']
+        current_user = requests.get("http://127.0.0.1:5001/userpublicid/{}".format(public_id))
+        current_user=current_user.json()
+
+        return f(current_user, *args, **kwargs)
+
+    return decorator
 
 @app.route('/addpost',methods=['POST'])
-def add_user():
-    addpost=mongo.db.post
+@token_required
+def add_post(current_user):
     name = request.json['name']
     post = request.json['post']
+    if name and post and request.method == 'POST':
 
-    if name and post and request.method=='POST':
-        postinsert_id=addpost.insert({'name':name, 'post':post})
-        new_post = addpost.find_one({'_id': postinsert_id})
-        output = {'name': new_post['name'], 'post': new_post['post']}
-        return jsonify({'result': output})
+        post = PostDetails.objects.create(name=name, post=post, user_id=current_user['_id'])
+        post.save()
+        return (jsonify({'message': 'Post Registered successfully'}))
 
-@app.route('/updatepost/<id>', methods=['PUT'])
-def update_post(id):
-    updatepost = mongo.db.post
+@app.route('/updatepost', methods=['PUT'])
+@token_required
+def update_post(current_user):
     name = request.json['name']
     post = request.json['post']
-
     # validate the received values
     if name and post and request.method == 'PUT':
         # save edits
-        updatepost.update_one({'_id': ObjectId(id)}, {'$set': {'name': name, 'post':post}})
+        PostDetails.objects.filter(user_id=current_user['_id']).update(name=name, post=post)
         resp = jsonify('Post updated successfully!')
         return resp
     else:
         return not_found()
 
 @app.route('/deletepost/<id>', methods=['DELETE'])
-def delete_post(id):
-    deletepost = mongo.db.post
-    deletepost.delete_one({'_id': ObjectId(id)})
+@token_required
+def delete_post(current_user,id):
+    result=PostDetails.objects.get(pk=id,user_id=current_user['_id'])
+    result.delete()
     resp = jsonify('Post deleted successfully!')
     resp.status_code = 200
     return resp
 
-@app.route('/posts', methods=['GET'])
-def post_list():
-    postlist = mongo.db.post
-    resp=postlist.find()
-    resp=dumps(resp)
-    return resp
-@app.route('/posts/<name>', methods=['GET'])
-def postlist(name):
-    postlist = mongo.db.post
-    resp=postlist.find_one({'name':name})
-    resp=dumps(resp)
-    return resp
+@app.route('/post', methods=['GET'])
+@token_required
+def post_list(current_user):
+    posts=PostDetails.objects.filter(user_id=current_user['_id']).all()
+    output = []
+    for p in posts:
+        post_data = {}
+        post_data['name'] = p.name
+        post_data['post'] = p.post
 
-@app.route('/onepost/<id>', methods=['GET'])
-def post_based_id(id):
-    postlist = mongo.db.post
-    resp=postlist.find_one({'_id': ObjectId(id)})
-    resp=dumps(resp)
-    return resp
+        output.append(post_data)
+
+    return jsonify({'list_of_authors': output})
 
 if __name__ == '__main__':
-    app.run(host="127.0.0.1", port=5002,debug=True)
+    app.run(host='0.0.0.0',port=5002,debug=True)
